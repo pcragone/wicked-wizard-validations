@@ -51,7 +51,7 @@ module Wicked
         # This is where the meat of the work happens.
         # We call this in the class, and it iterates through all the wizard steps, calling `[wizard_step_name]_validations`
         # on the class. If it responds, it should return a hash which can be passed straight into a `validates()` call
-        def setup_validations!
+        def setup_validations!(options={})
           # Iterate through each step in the validations hash, and call a class method called [step]_step_validations
           # if it exists. For example, if step were called foo_details, the method would be called foo_details_validations
           self.all_wizard_steps.each do |step|
@@ -66,7 +66,11 @@ module Wicked
               self.send(validation_method_name).each do |field,validations|
                 # validate the field, using the validations hash, but merge in a lambda which checks whether the object
                 # is at the step yet, or not. If it's not, the validation isn't applied.
-                validates field, validations.merge({if: ->{ self.current_and_previous_wizard_steps.include?(step)}})
+                if options[:current_step_only] == true
+                  validates field, validations.merge({if: ->{ self.current_step.to_sym == step.to_sym}})
+                else
+                  validates field, validations.merge({if: ->{ self.current_and_previous_wizard_steps.include?(step)}})
+                end
               end
             end
           end
@@ -97,12 +101,12 @@ module Wicked
       # Call the `previous_wizard_steps` class method, passing in the current step for this instance
       # @return [Array] an ordered list of wizard steps which happen before the current one
       def previous_wizard_steps
-        self.class.previous_wizard_steps(current_wizard_step.to_sym)
+        self.class.previous_wizard_steps(current_wizard_step.try(:to_sym))
       end
 
       # @return [Array] an ordered list of wizard steps, up to and including this one
       def current_and_previous_wizard_steps
-        previous_wizard_steps.push(current_wizard_step.to_sym)
+        previous_wizard_steps.push(current_wizard_step.try(:to_sym))
       end
     end
   end
